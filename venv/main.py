@@ -22,6 +22,9 @@ import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 screen_helper = """
 ScreenManager:
@@ -47,6 +50,12 @@ ScreenManager:
         id: display_policy
     ClaimScreen:
         id: claim_screen
+    DisplayQuote:
+        id: display_quote
+    OwnershipDetailsScreen:
+        id: ownership_details_screen
+        
+
  
 <LoginScreen>:
     name: 'login'
@@ -60,7 +69,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "car-insurance.png"
+            source: "images/car-insurance.png"
             
         MDLabel:
             id: login_label
@@ -134,7 +143,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "quotation.png"
+                        source: "images/quotation.png"
                         y: self.parent.y+ 35
                         x: self.parent.x
                 
@@ -147,7 +156,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "claim.png"
+                        source: "images/claim.png"
                         y: self.parent.y+ 35
                         x: self.parent.x
                 
@@ -160,7 +169,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "insurance.png"
+                        source: "images/insurance.png"
                         y: self.parent.y+ 35
                         x: self.parent.x
                 
@@ -173,7 +182,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "profile.png"
+                        source: "images/profile.png"
                         y: self.parent.y+ 35
                         x: self.parent.x
                 
@@ -186,7 +195,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "settings.png"
+                        source: "images/settings.png"
                         y: self.parent.y + 35
                         x: self.parent.x
                 
@@ -199,7 +208,7 @@ ScreenManager:
                         y: self.parent.y+ 15
                         x: self.parent.x+ 15
                     Image:
-                        source: "logout.png"
+                        source: "images/logout.png"
                         y: self.parent.y+ 35
                         x: self.parent.x
             
@@ -392,6 +401,114 @@ ScreenManager:
                     pos_hint:{"center_x":0.5}
                     on_press: app.root.current = 'login'
             
+<OwnershipDetailsScreen>:
+    name: 'ownership_details_screen'            
+    MDCard:
+        size_hint: None, None
+        size: 300,500
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: 10
+        padding: 25
+        spacing: 25
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: ownership_details_label
+            text: "Please enter details below:"
+            font_size: 20
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: 15
+        
+        ScrollView:
+            size_hint_y: .73
+            do_scroll_x:False
+            do_scroll_y:True
+            
+            GridLayout:
+                size: (self.parent.width,self.parent.height)
+                size_hint_x:None
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                Widget:
+                    size_hint_y: None
+                    height: 10
+            
+                Label:
+                    text: 'Ownership Details'
+                    text_size: self.parent.width, None
+                    size: self.texture_size
+                    halign: 'right'
+                    valign: 'middle'
+    
+                MDTextField:
+                    id: ownership
+                    mode: "rectangle"
+                    hint_text: "Gender"
+                    on_focus: if self.focus: root.ownership_picker()
+                    
+                MDTextField:
+                    id: licence_plate
+                    hint_text: "Licence Plate Number"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    
+                Widget:
+                    size_hint_y: None
+                    height: 10
+                    
+                Label:
+                    text: 'Payment Method'
+                    text_size: self.parent.width, None
+                    size: self.texture_size
+                    halign: 'right'
+                    valign: 'middle'
+                    
+                Label:
+                    text: "Internet Banking"
+                    font_size: 20
+                    valign: 'middle'
+                    halign: 'left'
+                    size: self.size
+                CheckBox:
+                    id: chk_internet_banking
+                    group: "payment_method"
+                    halign: 'left'
+                    
+                Label:
+                    text: "Card"
+                    font_size: 20
+                    valign: 'middle'
+                    halign: 'left'
+                    size: self.size
+                CheckBox:
+                    id: chk_card
+                    group: "payment_method"
+                    halign: 'left'
+                
+                    
+                Widget:
+                    size_hint_y: None
+                    height: 10
+                    
+                MDRoundFlatButton:
+                    text: "CONTINUE"
+                    font_size: 15
+                    pos_hint:{"center_x":0.5}
+                    
+                
+                Widget:
+                    size_hint_y: None
+                    height: 10
+                    
+                MDRoundFlatButton:
+                    text: "BACK"
+                    font_size: 15
+                    pos_hint:{"center_x":0.5}
+                    on_press: app.root.current = 'display_quote'
             
 <QuoteForm>:
     name: 'quote_form'            
@@ -552,16 +669,15 @@ ScreenManager:
             do_scroll_y:True
             
             GridLayout:
+                id: quotes_grid
                 size: (self.parent.width,self.parent.height)
                 size_hint_x:None
                 size_hint_y:None
-                cols:1
-                height:self.minimum_height
-                
-                Widget:
-                    size_hint_y: None
-                    height: 10
-                    
+                padding: 10,10
+                spacing: 10,10
+                cols:3
+                height:self.minimum_height  
+                                            
         MDRoundFlatButton:
             text: "BACK"
             font_size: 15
@@ -915,30 +1031,21 @@ ScreenManager:
             do_scroll_y:True
             
             GridLayout:
+                id : fourwheel_grid
                 size: (self.parent.width,self.parent.height)
                 size_hint_x:None
                 size_hint_y:None
                 padding: 10,10
                 spacing: 10,10
-                cols:1
-                height:400
-            
-                Label:
-                    text: 'FOUR WHEELERS'
-                    text_size: self.size
-                    valign: 'middle'
-                
-                GridLayout:
-                    id : fourwheel_grid
-                    cols:3
-                    height:self.minimum_height
-                    row_default_height: '30dp'
+                cols:3
+                height:self.minimum_height
+                 
 
-                MDRoundFlatButton:
-                    text: "BACK"
-                    font_size: 15
-                    pos_hint:{"center_x":0.5, "center_y":0.1}
-                    on_press: app.root.current = 'menu'
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: 15
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'menu'
                          
 <ProfileScreen>:
     name: 'profile'            
@@ -975,7 +1082,7 @@ ScreenManager:
                 height:400
                 
                 Image:
-                    source: "user.png" 
+                    source: "images/user.png" 
                     halign: 'left'
                     
                 MDRectangleFlatButton:
@@ -1141,7 +1248,43 @@ ScreenManager:
             text: "BACK"
             font_size: 15
             pos_hint:{"center_x":0.5, "center_y":0.1}
-            on_press: app.root.current = 'policies'  
+            on_press: app.root.current = 'policies' 
+            
+<DisplayQuote>:
+    name: 'display_quote'            
+    MDCard:
+        size_hint: None, None
+        size: 300,500
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: 10
+        padding: 25
+        spacing: 25
+        orientation: 'vertical'  
+        
+        MDLabel:
+            id: display_quote_label
+            text: "Quote Details"
+            font_size: 30
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: 15 
+                
+        ScrollView:
+            size_hint_y: .73
+            do_scroll_x:False
+            do_scroll_y:True  
+                            
+            GridLayout:
+                id: quote_grid
+                cols:2
+                height:self.minimum_height   
+                
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: 15
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'quote_screen'  
             
 <ClaimScreen>:
     name: 'claim_screen'
@@ -1155,7 +1298,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "checked.png"
+            source: "images/checked.png"
             
         MDLabel:
             text: "Claim Filed Successfully"
@@ -1178,6 +1321,10 @@ ScreenManager:
             font_size: 15
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'menu'  
+            
+
+            
+            
 """
 
 class LoginScreen(Screen):
@@ -1257,13 +1404,15 @@ class LoginScreen(Screen):
                         if key1 == "VIN":
                             vin = value1
 
-                    image_name = "sedan.png"
+                    image_name = "images/sedan.png"
                     if make == 'sports car':
-                        image_name = "sport-car.png"
+                        image_name = "images/sport-car.png"
 
-                    new_img = Image(source = image_name, size_hint_x=None, width=30)
-                    new_label = Label(font_size="8sp",text="Type: "+str(typ)+"\nPolicy Number: "+str(pol_num)+"\nExpiration Date: "+str(exp_date)+"\nVIN: "+str(vin), valign="middle")
-                    new_button = Button(font_size="10sp", text="VIEW", size_hint_x=None, width=35, height=5)
+                    new_img = Image(source = image_name, size_hint_x=None, width=40,size_hint_y=None)
+                    new_label = Label(font_size="8sp",text="Type: "+str(typ)+"\nPolicy Number: "+str(pol_num)+"\nExpiration Date: "+str(exp_date)+"\nVIN: "+str(vin), valign="middle",
+                                      size_hint_y=None)
+                    new_button = Button(font_size="10sp", text="VIEW",size_hint_x=None, size_hint_y=None, width=40)
+                    self.ids[str(pol_num)] = new_button
 
 
                     app = App.get_running_app()
@@ -1276,12 +1425,13 @@ class LoginScreen(Screen):
     def update_policy_display(self,instance):
         firebase_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
-        user_dict = res.json().get("Policies")
+        policy_dict = res.json().get("Policies")
         app = App.get_running_app()
         app.root.ids.display_policy.ids.policies_grid.clear_widgets()
-        for key, value in user_dict.items():
+        policy_num = QuoteForm.get_instance_id(self,instance)
+        for key, value in policy_dict.items():
             for key1, value1 in value.items():
-                if key1 == "Username" and value1 == self.ids.user_field.text:
+                if  key1 == "Policy Number" and value1 == int(policy_num):
                     for key1, value1 in value.items():
                         field = Label(text=str(key1), valign="middle")
                         val = Label(text=str(value1), valign="middle")
@@ -1478,7 +1628,15 @@ class QuoteForm(Screen):
         return income_level
 
 
-    def update_recommendations(self, age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type):
+    def apply_multipliers(self,base_premium,multipliers):
+        if multipliers==[]:
+            return base_premium
+        else:
+            base_premium = base_premium+multipliers[0]*base_premium
+            return(self.apply_multipliers(base_premium,multipliers[1:]))
+
+
+    def find_recommendations(self, age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type):
         firebase_url = "https://fypvehicleappbasepremiums-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
         bases_dict = res.json().get("Bases per Annum")
@@ -1543,10 +1701,31 @@ class QuoteForm(Screen):
             if i=='Vehicle Owned':
                 multipliers.append(effects[causes.index(i)])
 
-        print(multipliers)
+        multipliers[:] = [x / 100 for x in multipliers]
+
+        recommendations_dict = {}
+        for key, value in bases_dict.items():
+            for key1 in value:
+                if key1 == "Vehicle Type" and value[key1] == veh_type:
+                    basic = value["Basic Premium"]
+                    cng_lpg_cover = value["CNG-LPG"]
+                    duration = value["Duration"]
+                    passenger_cover = value["Passenger Cover"]
+                    tppd = value["TPPD"]
+                    total = value["Total Premium"]
+                    vat = value["VAT"]
+                    policy_name = key
+                    new_basic = self.apply_multipliers(basic, multipliers)
+                    total = int(total-(basic-new_basic))
+                    basic = int(new_basic)
+                    recommendations_dict[policy_name] = {'Basic Premium':basic,  'CNG-LPG Cover':cng_lpg_cover,
+                                            'Duration':duration,'Passenger Cover':passenger_cover,'TPPD':tppd,
+                                            'VAT':vat,'Total Premium':total}
+        return recommendations_dict
 
 
-        
+
+
     def add_quote_request(self):
         veh_make = self.ids.veh_make.text
         veh_mileage = self.ids.veh_mileage.text
@@ -1570,20 +1749,99 @@ class QuoteForm(Screen):
         app = App.get_running_app()
         username = app.root.ids.profile.ids.profile_user.text
 
-        app.root.current = 'quote_screen'
+
 
         dob, gender, education, credit_score, duis, driving_exp, income, past_acc, speeding = ClaimForm().get_user_info(username, claim=False)
         dob = dob.split("-")
         age = ClaimForm().calculate_age(date(int(dob[0]), int(dob[1]), int(dob[2])))
 
-        self.update_recommendations(age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type)
+        self.recommendations = self.find_recommendations(age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type)
+
+        image_name = "images/sedan.png"
+        if veh_type == 'sports car':
+            image_name = "images/sport-car.png"
+
+        for key, value in self.recommendations.items():
+            for key1 in value:
+                if key1=='Basic Premium':
+                    basic = value["Basic Premium"]
+                if key1=='Duration':
+                    duration = value["Duration"]
+                if key1=='Total Premium':
+                    total = value["Total Premium"]
+                if key1=='VAT':
+                    vat = value["VAT"]
 
 
+            slug = key.replace(" ", "_")
+            new_img = Image(source=image_name, size_hint_x=None, width=40,size_hint_y=None)
+            new_label = Label(font_size="8sp",
+                          text="Policy Name: " + str(key) + "\nTotal Premium: " + str(total) + "\nBasic Premium: " + str(
+                              basic) + "\nVAT: " + str(vat)+ "\nDuration: " + str(duration), valign="middle", size_hint_y=None)
+            new_button = Button(font_size="10sp", text="VIEW", size_hint_x=None, width=40,size_hint_y=None)
+            self.ids[str(key)] = new_button
+            new_button.bind(on_press=self.update_quote_display)
+            app.root.ids.quote_screen.ids.quotes_grid.add_widget(new_img)
+            app.root.ids.quote_screen.ids.quotes_grid.add_widget(new_label)
+            app.root.ids.quote_screen.ids.quotes_grid.add_widget(new_button)
+
+        app.root.current = 'quote_screen'
+
+    def get_instance_id(self, instance):
+        if instance in self.ids.values():
+            return (list(self.ids.keys())[list(self.ids.values()).index(instance)])
+
+    def update_quote_display(self, instance):
+        recommendations  = self.recommendations
+        policy_name = str(self.get_instance_id(instance))
+
+        firebase_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
+        res = requests.get(url=firebase_url)
+        policies_dict = res.json().get("Policies")
+        app = App.get_running_app()
+        app.root.ids.display_quote.ids.quote_grid.clear_widgets()
+
+        display_recommendation = recommendations[policy_name]
+        for key1, value1 in display_recommendation.items():
+            field = Label(text=str(key1), valign="middle")
+            val = Label(text=str(value1), valign="middle")
+            app.root.ids.display_quote.ids.quote_grid.add_widget(field)
+            app.root.ids.display_quote.ids.quote_grid.add_widget(val)
+
+        app.root.current = 'display_quote'
 
 class QuoteScreen(Screen):
     pass
 
 class ClaimForm(Screen):
+
+    def send_email(self, fromaddr, toaddr, subject, message):
+
+        msg = MIMEMultipart()
+        msg['From'] = fromaddr
+        msg['To'] = toaddr
+        msg['Subject'] = subject
+        body = message
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        s = smtplib.SMTP('smtp.gmail.com', 587)
+
+        s.starttls()
+
+        try:
+            s.login(fromaddr, "FYPinsuranceapp2022")
+
+            text = msg.as_string()
+
+            s.sendmail(fromaddr, toaddr, text)
+        except:
+            print("An Error occured while sending email.")
+        finally:
+            s.quit()
+
+        return []
+
     def incident_type_picker(self):
         incident_types = ['Multi Vehicle Collision', 'Single Vehicle Collision']
         incident_types_items = [
@@ -1769,6 +2027,8 @@ class ClaimForm(Screen):
                 }
         result = fb.post('/Claims/', data)
 
+
+
     def add_claim(self):
         policy_number = self.ids.policy_number.text
         incident_type = self.ids.incident_type.text
@@ -1786,11 +2046,9 @@ class ClaimForm(Screen):
         bank_branch= self.ids.bank_branch.text
         taxpayer_number= self.ids.taxpayer_number.text
 
-
-
-
         app = App.get_running_app()
         username = app.root.ids.profile.ids.profile_user.text
+        email = app.root.ids.profile.ids.profile_email.text
 
         if incident_type == "Multi Vehicle Collision":
             incident_type_Multi_Vehicle_Collision = 1
@@ -1893,7 +2151,7 @@ class ClaimForm(Screen):
             insured_education_level_Masters = 0
             insured_education_level_PhD = 0
 
-        with open('random_forest_classifier_pkl', 'rb') as f:
+        with open('classifiers/random_forest_classifier_pkl', 'rb') as f:
             clf = pickle.load(f)
         prediction = clf.predict([[
             insured_sex_FEMALE,
@@ -1943,8 +2201,18 @@ class ClaimForm(Screen):
                         incident_date, auth_contact, police_report, number_of_vehicles_involved, account_holder_name,
                         bank_account_number, routing_code, bank_name, bank_branch, taxpayer_number, fraud)
 
+        fromaddr = 'fypcarinsuranceapp@gmail.com'
+        toaddr = email
+        subject = 'Claim Filed'
+        message = 'claim filed successfully'
+
+        self.send_email(fromaddr, toaddr, subject, message)
         app.root.current = 'claim_screen'
 
+
+
+class DisplayQuote(Screen):
+    pass
 
 class ClaimScreen(Screen):
     pass
@@ -1956,6 +2224,9 @@ class DisplayPolicy(Screen):
     pass
 
 class ProfileScreen(Screen):
+    pass
+
+class OwnershipDetailsScreen(Screen):
     pass
 
 class SettingScreen(Screen):
@@ -1975,6 +2246,8 @@ sm.add_widget(MenuScreen(name='policies'))
 sm.add_widget(MenuScreen(name='profile'))
 sm.add_widget(MenuScreen(name='settings'))
 sm.add_widget(MenuScreen(name='display_policy'))
+sm.add_widget(MenuScreen(name='display_quote'))
+sm.add_widget(MenuScreen(name='ownership_details_screen'))
 
 class MainApp(MDApp):
     def build(self):
