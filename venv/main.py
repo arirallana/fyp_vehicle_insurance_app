@@ -16,6 +16,7 @@ from kivymd.uix.list import OneLineIconListItem
 from kivy.metrics import dp, sp
 from kivymd.uix.picker import MDDatePicker
 from kivy.uix.button import Button
+
 import requests
 import json
 from firebase import firebase
@@ -95,7 +96,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "images/car-insurance.png"
+            source: "car-insurance.png"
             
         MDLabel:
             id: login_label
@@ -169,7 +170,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ dp(15)
                     Image:
-                        source: "images/quotation.png"
+                        source: "quotation.png"
                         y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
@@ -182,7 +183,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ dp(15)
                     Image:
-                        source: "images/claim.png"
+                        source: "claim.png"
                         y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
@@ -195,7 +196,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ 15
                     Image:
-                        source: "images/insurance.png"
+                        source: "insurance.png"
                         y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
@@ -208,7 +209,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ dp(15)
                     Image:
-                        source: "images/profile.png"
+                        source: "profile.png"
                         y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
@@ -221,7 +222,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ dp(15)
                     Image:
-                        source: "images/settings.png"
+                        source: "settings.png"
                         y: self.parent.y + dp(35)
                         x: self.parent.x
                 
@@ -234,7 +235,7 @@ ScreenManager:
                         y: self.parent.y+ dp(15)
                         x: self.parent.x+ dp(15)
                     Image:
-                        source: "images/logout.png"
+                        source: "logout.png"
                         y: self.parent.y+ dp(35)
                         x: self.parent.x
             
@@ -1543,7 +1544,7 @@ ScreenManager:
                 
                 Image:
                     id: profile_img 
-                    source: "images/user.png" 
+                    source: "user.png" 
                     halign: 'left'
                     
                 MDRectangleFlatButton:
@@ -1760,7 +1761,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "images/checked.png"
+            source: "checked.png"
             
         MDLabel:
             text: "Claim Filed Successfully"
@@ -1794,7 +1795,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "images/checked.png"
+            source: "checked.png"
             
         MDLabel:
             text: "Policy Purchased Successfully"
@@ -1828,7 +1829,7 @@ ScreenManager:
         orientation: 'vertical'
         
         Image:
-            source: "images/checked.png"
+            source: "checked.png"
             
         MDLabel:
             text: "Policy Renewed Successfully"
@@ -1992,9 +1993,9 @@ class LoginScreen(Screen):
                         if key1 == "VIN":
                             vin = value1
 
-                    image_name = "images/sedan.png"
+                    image_name = "sedan.png"
                     if make == 'sports car':
-                        image_name = "images/sport-car.png"
+                        image_name = "sport-car.png"
 
                     new_img = Image(source = image_name, size_hint_x=None, width=dp(40),size_hint_y=None)
                     new_label = Label(font_size="12sp",text="Type: "+str(typ)+"\nPolicy Number: "+str(pol_num)+"\nExpiration Date: "+str(exp_date)+"\nVIN: "+str(vin), valign="middle",
@@ -2353,9 +2354,9 @@ class QuoteForm(Screen):
 
         self.recommendations = self.find_recommendations(age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type)
 
-        image_name = "images/sedan.png"
+        image_name = "sedan.png"
         if veh_type == 'sports car':
-            image_name = "images/sport-car.png"
+            image_name = "sport-car.png"
 
         for key, value in self.recommendations.items():
             for key1 in value:
@@ -2839,7 +2840,7 @@ class ClaimForm(Screen):
             insured_education_level_PhD = 0
 
         try:
-            with open("classifiers/random_forest_classifier_pkl", 'rb') as f:
+            with open("random_forest_classifier_pkl", 'rb') as f:
                 clf = pickle.load(f)
             prediction = clf.predict([[
                 insured_sex_FEMALE,
