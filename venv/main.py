@@ -1,3 +1,5 @@
+from kivy.config import Config
+Config.set('graphics', 'resizable', True)
 import kivy
 from kivy.app import App
 from kivy.uix.label import Label
@@ -11,20 +13,27 @@ from kivymd.app import MDApp
 from kivy.uix.image import Image
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import OneLineIconListItem
-from kivy.metrics import dp
+from kivy.metrics import dp, sp
 from kivymd.uix.picker import MDDatePicker
 from kivy.uix.button import Button
 import requests
 import json
 from firebase import firebase
-from datetime import date
+import pyrebase
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 import re
-import smtplib
+from random import randint
+import smtplib, email, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email import encoders
+from email.mime.base import MIMEBase
+from plyer import filechooser
+from pathlib import Path
 
 screen_helper = """
 ScreenManager:
@@ -54,18 +63,35 @@ ScreenManager:
         id: display_quote
     OwnershipDetailsScreen:
         id: ownership_details_screen
+    CardPaymentScreen:
+        id: card_payment_screen
+    BankTransferScreen:
+        id: bank_transfer_screen
+    PurchaseSuccessScreen:
+        id: purchase_success_screen
+    PaymentSelectScreen:
+        id:payment_select_screen
+    CardPaymentScreenRenew:
+        id: card_payment_screen_renew
+    BankTransferScreenRenew:
+        id: bank_transfer_screen_renew
+    RenewSuccessScreen:
+        id: renew_success_screen
+    ChangePasswordScreen:
+        id: change_password_screen
+ 
+     
         
 
  
 <LoginScreen>:
     name: 'login'
     MDCard:
-        size_hint: None, None
-        size: 300,500
+       
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'
         
         Image:
@@ -74,19 +100,19 @@ ScreenManager:
         MDLabel:
             id: login_label
             text: "Vehicle Insurance App"
-            font_size: 25
+            font_size: sp(25)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15
+            padding_y: dp(15)
 
         MDTextFieldRound:
             id: user_field
             hint_text: "username"
             icon_right: "account"
             size_hint_x: None
-            width: 200
-            font_size: 20
+            width: dp(200)
+            font_size: sp(20)
             pos_hint:{"center_x":0.5}
 
         MDTextFieldRound:
@@ -94,37 +120,37 @@ ScreenManager:
             hint_text: "password"
             icon_right: "eye-off"
             size_hint_x: None
-            width: 200
-            font_size: 20
+            width: dp(200)
+            font_size: sp(20)
             pos_hint:{"center_x":0.5}
             password: True
 
         MDRoundFlatButton:
             text: "LOG IN"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5}
             on_press: root.logger(); root.update_profile(); root.update_policies()
 
         MDRoundFlatButton:
             text: "SIGN UP"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5}
             on_press: app.root.current = 'signup'
+  
             
         Widget:
             size_hint_y: None
-            height: 10
+            height: dp(10)
         
 <MenuScreen>:
     name: 'menu'
     
     MDCard:
-        size_hint: None, None
-        size: 300,500
+        
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'                   
                 
         MDFloatLayout:
@@ -140,11 +166,11 @@ ScreenManager:
                     Label:
                         text_size: self.size
                         text: "Get Quote"
-                        y: self.parent.y+ 15
-                        x: self.parent.x+ 15
+                        y: self.parent.y+ dp(15)
+                        x: self.parent.x+ dp(15)
                     Image:
                         source: "images/quotation.png"
-                        y: self.parent.y+ 35
+                        y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
                 Button:
@@ -153,11 +179,11 @@ ScreenManager:
                     Label:
                         text_size: self.size
                         text: "Register Claim"
-                        y: self.parent.y+ 15
-                        x: self.parent.x+ 15
+                        y: self.parent.y+ dp(15)
+                        x: self.parent.x+ dp(15)
                     Image:
                         source: "images/claim.png"
-                        y: self.parent.y+ 35
+                        y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
                 Button:
@@ -166,11 +192,11 @@ ScreenManager:
                     Label:
                         text_size: self.size
                         text: "My Policies"
-                        y: self.parent.y+ 15
+                        y: self.parent.y+ dp(15)
                         x: self.parent.x+ 15
                     Image:
                         source: "images/insurance.png"
-                        y: self.parent.y+ 35
+                        y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
                 Button:
@@ -179,11 +205,11 @@ ScreenManager:
                     Label:
                         text_size: self.size
                         text: "My Profile"
-                        y: self.parent.y+ 15
-                        x: self.parent.x+ 15
+                        y: self.parent.y+ dp(15)
+                        x: self.parent.x+ dp(15)
                     Image:
                         source: "images/profile.png"
-                        y: self.parent.y+ 35
+                        y: self.parent.y+ dp(35)
                         x: self.parent.x
                 
                 Button:
@@ -192,61 +218,56 @@ ScreenManager:
                     Label:
                         text_size: self.size
                         text: "Settings"
-                        y: self.parent.y+ 15
-                        x: self.parent.x+ 15
+                        y: self.parent.y+ dp(15)
+                        x: self.parent.x+ dp(15)
                     Image:
                         source: "images/settings.png"
-                        y: self.parent.y + 35
+                        y: self.parent.y + dp(35)
                         x: self.parent.x
                 
                 Button:
                     id: btn_logout
-                    on_press: app.root.current = 'login'
+                    on_press: root.logout()
                     Label:
                         text_size: self.size
                         text: "Logout"
-                        y: self.parent.y+ 15
-                        x: self.parent.x+ 15
+                        y: self.parent.y+ dp(15)
+                        x: self.parent.x+ dp(15)
                     Image:
                         source: "images/logout.png"
-                        y: self.parent.y+ 35
+                        y: self.parent.y+ dp(35)
                         x: self.parent.x
             
 <SignUpScreen>:
     name: 'signup'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
+    
         MDLabel:
             id: signup_label
             text: "Sign Up"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15
+            padding_y: dp(15)
         
-        ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
-            
+        ScrollView:           
             GridLayout:
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
                 cols:1
                 height:self.minimum_height
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
             
                 Label:
                     text: 'Personal Info'
@@ -320,7 +341,7 @@ ScreenManager:
                 
                 Widget:
                     size_hint_y: None
-                    height: 50
+                    height: dp(50)
                     
                 Label:
                     text: 'Driving History'
@@ -361,7 +382,7 @@ ScreenManager:
                 
                 Widget:
                     size_hint_y: None
-                    height: 50
+                    height: dp(50)
                     
                 Label:
                     text: 'Account Info'
@@ -383,59 +404,55 @@ ScreenManager:
                     
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
                     
                 MDRoundFlatButton:
                     text: "SIGN UP"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: root.create_post()
+                    
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
                     
                 MDRoundFlatButton:
                     text: "CANCEL"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: app.root.current = 'login'
             
 <OwnershipDetailsScreen>:
     name: 'ownership_details_screen'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
         MDLabel:
             id: ownership_details_label
             text: "Please enter details below:"
-            font_size: 20
+            font_size: sp(20)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15
+            padding_y: dp(15)
         
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
             
             GridLayout:
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
                 cols:1
                 height:self.minimum_height
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
             
                 Label:
                     text: 'Ownership Details'
@@ -447,104 +464,576 @@ ScreenManager:
                 MDTextField:
                     id: ownership
                     mode: "rectangle"
-                    hint_text: "Gender"
+                    hint_text: "Ownership"
                     on_focus: if self.focus: root.ownership_picker()
                     
                 MDTextField:
                     id: licence_plate
                     hint_text: "Licence Plate Number"
                     mode: "rectangle"
-                    input_filter: 'int'
                     
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(20)
                     
                 Label:
-                    text: 'Payment Method'
+                    text: 'Upload registration document:'
                     text_size: self.parent.width, None
                     size: self.texture_size
-                    halign: 'right'
-                    valign: 'middle'
-                    
-                Label:
-                    text: "Internet Banking"
-                    font_size: 20
-                    valign: 'middle'
                     halign: 'left'
-                    size: self.size
-                CheckBox:
-                    id: chk_internet_banking
-                    group: "payment_method"
-                    halign: 'left'
-                    
-                Label:
-                    text: "Card"
-                    font_size: 20
-                    valign: 'middle'
-                    halign: 'left'
-                    size: self.size
-                CheckBox:
-                    id: chk_card
-                    group: "payment_method"
-                    halign: 'left'
-                
                     
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(40)
                     
-                MDRoundFlatButton:
-                    text: "CONTINUE"
-                    font_size: 15
-                    pos_hint:{"center_x":0.5}
+                GridLayout:
+                    cols:2
+                    row_default_height: '15dp'
+                    row_force_default: True
+                    spacing: dp(10), dp(10)
+                    padding: dp(5), dp(5)
+                    size_hint_y: None
+                    height: self.minimum_height
                     
-                
+                    MDRectangleFlatButton:
+                        text: "Upload"
+                        font_size: sp(10)
+                        pos_hint:{"center_x":0.5}
+                        size: dp(15), dp(10)
+                        size_hint: None, None
+                        on_press: root.ownership_reg_doc_chooser()
+                        
+                        
+                    Label:
+                        id: ownership_reg_doc_upload
+                        text: "No Document uploaded"
+                        font_size: sp(10)
+                        valign: 'middle'
+                        halign: 'left'
+                        size: self.size
+                        
+                    Widget:
+                        size_hint_y: None
+                        height: dp(10)
+                        
+                        
+                Spinner:
+                    id: payment_method
+                    text: 'Select payment method'
+                    values: ["Internet Banking", "Card"]
+                    size_hint: None, None
+                    size: dp(175), dp(60)
+                    auto_width: False                    
+                                                
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(40)                                    
                     
-                MDRoundFlatButton:
-                    text: "BACK"
-                    font_size: 15
-                    pos_hint:{"center_x":0.5}
-                    on_press: app.root.current = 'display_quote'
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "CONTINUE"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.proceed_to_payment()
             
-<QuoteForm>:
-    name: 'quote_form'            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'display_quote'
+            
+<PaymentSelectScreen>:
+    name: 'payment_select_screen'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
-        orientation: 'vertical'    
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
         
         MDLabel:
-            id: get_quote_label
-            text: "Get Quotes"
-            font_size: 30
+            id: payment_select_label
+            text: "Please select payment method:"
+            font_size: sp(20)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15
-    
+            padding_y: dp(15)
+        
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
             
             GridLayout:
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
                 cols:1
                 height:self.minimum_height
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)                        
+                        
+                Spinner:
+                    id: payment_method
+                    text: 'Select payment method'
+                    values: ["Internet Banking", "Card"]
+                    size_hint: None, None
+                    size: dp(175), dp(60)
+                    auto_width: False                    
+                                                
+                Widget:
+                    size_hint_y: None
+                    height: dp(40)                                    
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "CONTINUE"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.proceed_to_payement_renew()
+            
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'display_policy'
+            
+<CardPaymentScreen>:
+    name: 'card_payment_screen'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: card_details_label
+            text: "Please enter card details below:"
+            font_size: sp(20)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+        
+        ScrollView:
+            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                GridLayout:
+                    cols:2
+                    row_default_height: '15dp'
+                    row_force_default: True
+                    spacing: dp(10), dp(10)
+                    padding: dp(5), dp(5)
+                    size_hint_y: None
+                    height: self.minimum_height
+                    
+                    Label:
+                        text: "Credit"
+                        font_size: sp(20)
+                        valign: 'middle'
+                        halign: 'left'
+                        size: self.size
+                    CheckBox:
+                        id: chk_credit
+                        group: "card_type"
+                        halign: 'left'
+                        
+                    Label:
+                        text: "Debit"
+                        font_size: sp(20)
+                        valign: 'middle'
+                        halign: 'left'
+                        size: self.size
+                    CheckBox:
+                        id: chk_debit
+                        group: "card_type"
+                        halign: 'left'
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                
+                MDTextField:
+                    id: card_number
+                    mode: "rectangle"
+                    hint_text: "Card Number"
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                    
+                MDTextField:
+                    id: security_code
+                    mode: "rectangle"
+                    hint_text: "Security Code"
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(30)
+                    
+                Label:
+                    text: 'Expiration Date'
+                    text_size: self.parent.width, None
+                    size: self.texture_size
+                    halign: 'right'
+                    valign: 'middle'
+    
+                MDTextField:
+                    id: expiry_month
+                    mode: "rectangle"
+                    hint_text: "Month"
+                    input_filter: 'int'
+                    
+                MDTextField:
+                    id: expiry_year
+                    mode: "rectangle"
+                    hint_text: "Year"
+                    input_filter: 'int'
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(20)
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "PAY"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.process_payment()
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'ownership_details_screen'
+            
+<BankTransferScreen>:
+    name: 'bank_transfer_screen'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: bank_details_label
+            text: "Please enter bank account details below:"
+            font_size: sp(20)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+        
+        ScrollView:            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                Spinner:
+                    id: bank_name
+                    text: 'Select Bank'
+                    values: ["Bank A", "Bank B", "Bank C"]
+                    size_hint: None, None
+                    size: dp(175), dp(60)
+                    auto_width: False  
+            
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                
+                MDTextField:
+                    hint_text: "Account Holder Name"
+                    mode: "rectangle"
+                    id: account_holder_name
+                    
+                MDTextField:
+                    hint_text: "Account Holder Email"
+                    mode: "rectangle"
+                    id: account_holder_name
+            
+                MDTextField:
+                    hint_text: "Account Number"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    id: bank_account_number
+                    
+                MDTextField:
+                    hint_text: "Message (optional)"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    id: bank_transfer_message
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(20)             
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "PAY"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.process_bank_transfer()
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'ownership_details_screen'
+            
+<CardPaymentScreenRenew>:
+    name: 'card_payment_screen_renew'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: card_details_label
+            text: "Please enter card details below:"
+            font_size: sp(20)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+        
+        ScrollView:
+            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                GridLayout:
+                    cols:2
+                    row_default_height: '15dp'
+                    row_force_default: True
+                    spacing: dp(10), dp(10)
+                    padding: dp(5), dp(5)
+                    size_hint_y: None
+                    height: self.minimum_height
+                    
+                    Label:
+                        text: "Credit"
+                        font_size: sp(20)
+                        valign: 'middle'
+                        halign: 'left'
+                        size: self.size
+                    CheckBox:
+                        id: chk_credit
+                        group: "card_type"
+                        halign: 'left'
+                        
+                    Label:
+                        text: "Debit"
+                        font_size: sp(20)
+                        valign: 'middle'
+                        halign: 'left'
+                        size: self.size
+                    CheckBox:
+                        id: chk_debit
+                        group: "card_type"
+                        halign: 'left'
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                
+                MDTextField:
+                    id: card_number
+                    mode: "rectangle"
+                    hint_text: "Card Number"
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                    
+                MDTextField:
+                    id: security_code
+                    mode: "rectangle"
+                    hint_text: "Security Code"
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(30)
+                    
+                Label:
+                    text: 'Expiration Date'
+                    text_size: self.parent.width, None
+                    size: self.texture_size
+                    halign: 'right'
+                    valign: 'middle'
+    
+                MDTextField:
+                    id: expiry_month
+                    mode: "rectangle"
+                    hint_text: "Month"
+                    input_filter: 'int'
+                    
+                MDTextField:
+                    id: expiry_year
+                    mode: "rectangle"
+                    hint_text: "Year"
+                    input_filter: 'int'
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(20)
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "PAY"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.process_payment_renew()
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'payment_select_screen'
+            
+<BankTransferScreenRenew>:
+    name: 'bank_transfer_screen_renew'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: bank_details_label
+            text: "Please enter bank account details below:"
+            font_size: sp(20)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+        
+        ScrollView:
+            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                Spinner:
+                    id: bank_name
+                    text: 'Select Bank'
+                    values: ["Bank A", "Bank B", "Bank C"]
+                    size_hint: None, None
+                    size: dp(175), dp(60)
+                    auto_width: False  
+            
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+                
+                MDTextField:
+                    hint_text: "Account Holder Name"
+                    mode: "rectangle"
+                    id: account_holder_name
+                    
+                MDTextField:
+                    hint_text: "Account Holder Email"
+                    mode: "rectangle"
+                    id: account_holder_name
+            
+                MDTextField:
+                    hint_text: "Account Number"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    id: bank_account_number
+                    
+                MDTextField:
+                    hint_text: "Message (optional)"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    id: bank_transfer_message
+                    
+                Widget:
+                    size_hint_y: None
+                    height: dp(20)             
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "PAY"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.process_bank_transfer_renew()
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'payment_select_screen'
+            
+<QuoteForm>:
+    name: 'quote_form'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'    
+        
+        MDLabel:
+            id: get_quote_label
+            text: "Get Quotes"
+            font_size: sp(30)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+    
+        ScrollView:
+            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
                 
                 MDTextField:
                     id: veh_make
@@ -555,6 +1044,12 @@ ScreenManager:
                 MDTextField:
                     id: veh_mileage 
                     hint_text: "Vehicle Annual Mileage"
+                    mode: "rectangle"
+                    input_filter: 'int'
+                    
+                MDTextField:
+                    id: miles_covered 
+                    hint_text: "Miles Covered"
                     mode: "rectangle"
                     input_filter: 'int'
                                          
@@ -589,21 +1084,21 @@ ScreenManager:
                 
                 Widget:
                     size_hint_y: None
-                    height: 20
+                    height: dp(20)
                     
                 GridLayout:
                     cols:2
                     row_default_height: '15dp'
                     row_force_default: True
-                    spacing: 10, 10
-                    padding: 5, 5
+                    spacing: dp(10), dp(10)
+                    padding: dp(5), dp(5)
                     size_hint_y: None
                     height: self.minimum_height
                     
                     
                     Label:
                         text: "Used"
-                        font_size: 20
+                        font_size: sp(20)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
@@ -614,7 +1109,7 @@ ScreenManager:
                         
                     Label:
                         text: "New"
-                        font_size: 20
+                        font_size: sp(20)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
@@ -625,100 +1120,90 @@ ScreenManager:
                     
                 Widget:
                     size_hint_y: None
-                    height: 20
+                    height: dp(20)
                     
                 MDRoundFlatButton:
                     text: "FIND"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: root.add_quote_request()
                     
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
                     
                 MDRoundFlatButton:
                     text: "BACK"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: app.root.current = 'menu'
                     
 <QuoteScreen>:
     name: 'quote_screen'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'    
         
         MDLabel:
             id: quote_screen_label
             text: "Policy Recommendations"
-            font_size: 25
+            font_size: sp(25)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15
+            padding_y: dp(15)
     
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
-            
+           
             GridLayout:
                 id: quotes_grid
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
-                padding: 10,10
-                spacing: 10,10
+                padding: dp(10),dp(10)
+                spacing: dp(10),dp(10)
                 cols:3
                 height:self.minimum_height  
                                             
         MDRoundFlatButton:
             text: "BACK"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'quote_form'
                     
 <ClaimForm>:
     name: 'claim_form'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
         MDLabel:
             id: claim_form_label
             text: "Register a Claim"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
             
             GridLayout:
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
                 cols:1
                 height:self.minimum_height
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
             
                 Label:
                     text: 'Incident Info'
@@ -792,7 +1277,7 @@ ScreenManager:
                 
                 Widget:
                     size_hint_y: None
-                    height: 20
+                    height: dp(20)
             
                 Label:
                     text: 'Bank Details'
@@ -836,7 +1321,7 @@ ScreenManager:
                     
                 Widget:
                     size_hint_y: None
-                    height: 20                     
+                    height: dp(20)                     
                     
                 Label:
                     text: 'Upload registration Document'
@@ -846,34 +1331,36 @@ ScreenManager:
                     
                 Widget:
                     size_hint_y: None
-                    height: 30
+                    height: dp(30)
                     
                 GridLayout:
                     cols:2
                     row_default_height: '15dp'
                     row_force_default: True
-                    spacing: 10, 10
-                    padding: 5, 5
+                    spacing: dp(10), dp(10)
+                    padding: dp(5), dp(5)
                     size_hint_y: None
                     height: self.minimum_height
                     
                     MDRectangleFlatButton:
                         text: "Upload"
-                        font_size: 10
+                        font_size: sp(10)
                         pos_hint:{"center_x":0.5}
                         size: 15, 10
                         size_hint: None, None
+                        on_press: root.registration_doc_chooser()
                         
                     Label:
+                        id: reg_doc_upload
                         text: "No Document uploaded"
-                        font_size: 10
+                        font_size: sp(10)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
                     
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
                 
                 Label:
                     text: 'Add Photograph'
@@ -883,212 +1370,187 @@ ScreenManager:
                     
                 Widget:
                     size_hint_y: None
-                    height: 30
+                    height: dp(30)
                     
                 GridLayout:
                     cols:2
                     row_default_height: '15dp'
                     row_force_default: True
-                    spacing: 20, 20
-                    padding: 5, 5
+                    spacing: dp(20), dp(20)
+                    padding: dp(5), dp(5)
                     size_hint_y: None
                     height: self.minimum_height
                     
                     MDRectangleFlatButton:
                         text: "Front"
-                        font_size: 10
+                        font_size: sp(10)
                         pos_hint:{"center_x":0.5}
-                        size: 15, 10
+                        size: dp(15), dp(10)
                         size_hint: None, None
+                        on_press: root.front_pic_chooser()
                         
                     Label:
+                        id: front_pic_upload
                         text: "No Photo"
-                        font_size: 10
+                        font_size: sp(10)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
                         
                     MDRectangleFlatButton:
                         text: "Back"
-                        font_size: 10
+                        font_size: sp(10)
                         pos_hint:{"center_x":0.5}
-                        size: 15, 10
+                        size: dp(15), dp(10)
                         size_hint: None, None
+                        on_press: root.back_pic_chooser()
                         
                     Label:
+                        id: back_pic_upload
                         text: "No Photo"
-                        font_size: 10
+                        font_size: sp(10)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
                         
                     MDRectangleFlatButton:
                         text: "Left Side"
-                        font_size: 10
+                        font_size: sp(10)
                         pos_hint:{"center_x":0.5}
-                        size: 15, 10
+                        size: dp(15), dp(10)
                         size_hint: None, None
+                        on_press: root.left_pic_chooser()
                         
                     Label:
+                        id: left_pic_upload
                         text: "No Photo"
-                        font_size: 10
+                        font_size: sp(10)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
                         
                     MDRectangleFlatButton:
                         text: "Right Side"
-                        font_size: 10
+                        font_size: sp(10)
                         pos_hint:{"center_x":0.5}
-                        size: 15, 10
+                        size: dp(15), dp(10)
                         size_hint: None, None
+                        on_press: root.right_pic_chooser()
                         
                     Label:
+                        id: right_pic_upload
                         text: "No Photo"
-                        font_size: 10
+                        font_size: sp(10)
                         valign: 'middle'
                         halign: 'left'
                         size: self.size
                         
                 Widget:
                     size_hint_y: None
-                    height: 5             
+                    height: dp(5)             
                     
                 Label:
-                    text: "I confirm that all information is correct"
-                    font_size: 12
+                    text: "By submitting this claim I confirm that all information is correct \\n and will provide originals of all uploaded documents \\n  within 30 days of filing this claim"
+                    font_size: sp(9)
                     valign: 'middle'
                     halign: 'left'
                     
                 Widget:
                     size_hint_y: None
-                    height: 20    
-                     
-                CheckBox:
-                    halign: 'left'
-                    
-                Widget:
-                    size_hint_y: None
-                    height: 20 
-                    
-                Label:
-                    text: "I will provide originals of all uploaded \\n documents within 30 days of filing this claim"
-                    font_size: 10
-                    valign: 'middle'
-                    halign: 'left'
-                    multiline : True
-                    
-                Widget:
-                    size_hint_y: None
-                    height: 20    
-                     
-                CheckBox:
-                    halign: 'left'
-                    
-                Widget:
-                    size_hint_y: None
-                    height: 20 
+                    height: dp(35) 
                     
                 MDRoundFlatButton:
                     text: "SUBMIT"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: root.add_claim()
                 
                 Widget:
                     size_hint_y: None
-                    height: 10
+                    height: dp(10)
                     
                 MDRoundFlatButton:
                     text: "BACK"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5}
                     on_press: app.root.current = 'menu'
 
 <PolicyScreen>:
     name: 'policies'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
         MDLabel:
             id: policies_label
             text: "Your Policies"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True
             
             GridLayout:
                 id : fourwheel_grid
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
-                padding: 10,10
-                spacing: 10,10
+                padding: dp(10),dp(10)
+                spacing: dp(10),dp(10)
                 cols:3
                 height:self.minimum_height
                  
 
         MDRoundFlatButton:
             text: "BACK"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'menu'
                          
 <ProfileScreen>:
     name: 'profile'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
         MDLabel:
             id: policies_label
             text: "Profile"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
-        ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True    
+        ScrollView:  
             
             GridLayout:
-                size: (self.parent.width,self.parent.height)
-                size_hint_x:None
+                width: self.parent.width-dp(10)
+                size_hint_x:1
                 size_hint_y:None
-                padding: 10,10
-                spacing: 10,10
+                padding: dp(10),dp(10)
+                spacing: dp(10),dp(10)
                 cols:1
-                height:400
+                height:dp(400)
                 
                 Image:
+                    id: profile_img 
                     source: "images/user.png" 
                     halign: 'left'
                     
                 MDRectangleFlatButton:
                     text: "Change Picture"
-                    font_size: 10
+                    font_size: sp(10)
                     pos_hint:{"center_x":0.5, "center_y":0.5}
+                    on_press: root.change_profile_pic()
                     
                 GridLayout:
                     padding: 10,10
@@ -1098,47 +1560,43 @@ ScreenManager:
                     
                     MDLabel:
                         text: "Name"
-                        font_size: 12
+                        font_size: sp(12)
                     MDLabel:
                         id: profile_name 
                         text: ''
-                        font_size: 10
+                        font_size: sp(10)
                     MDLabel:
                         text: "username"
-                        font_size: 12
+                        font_size: sp(12)
                     MDLabel:
                         id: profile_user
                         text: ''
-                        font_size: 10
+                        font_size: sp(10)
                     MDLabel:
                         text: "Email"
-                        font_size: 12
+                        font_size: sp(12)
                     MDLabel:
                         id: profile_email
                         text: ''
-                        font_size: 10
+                        font_size: sp(10)
                         halign:'left'
                     MDLabel:
                         text: "Phone Number"
-                        font_size: 12
+                        font_size: sp(12)
                     MDLabel:
                         id:profile_phone
                         text: ''
-                        font_size: 10
+                        font_size: sp(10)
                 
                 MDRectangleFlatButton:
                     text: "Change Password"
-                    font_size: 10
+                    font_size: sp(10)
                     pos_hint:{"center_x":0.5, "center_y":0.5}
-                
-                MDRoundFlatButton:
-                    text: "Edit Profile"
-                    font_size: 15
-                    pos_hint:{"center_x":0.5, "center_y":0.1}
+                    on_press: app.root.current = 'change_password_screen'
                     
                 MDRoundFlatButton:
                     text: "BACK"
-                    font_size: 15
+                    font_size: sp(15)
                     pos_hint:{"center_x":0.5, "center_y":0.1}
                     on_press: app.root.current = 'menu'
                     
@@ -1146,29 +1604,25 @@ ScreenManager:
 <SettingScreen>:
     name: 'settings'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'   
         
         MDLabel:
             id: settings_label
             text: "Settings"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
-        ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True  
+        ScrollView:  
                             
             GridLayout:
+                
                 cols:2
                 height:self.minimum_height
             
@@ -1210,91 +1664,99 @@ ScreenManager:
                         
         MDRoundFlatButton:
             text: "BACK"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'menu'
 
 <DisplayPolicy>:
     name: 'display_policy'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'  
         
         MDLabel:
             id: display_policies_label
             text: "Policy Details"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
         ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True  
                             
             GridLayout:
                 id: policies_grid
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                height:self.minimum_height
                 cols:2
-                height:self.minimum_height   
                 
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+            
+        MDRoundFlatButton:
+            text: "RENEW"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'payment_select_screen'
+             
+                 
         MDRoundFlatButton:
             text: "BACK"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'policies' 
             
 <DisplayQuote>:
     name: 'display_quote'            
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'  
         
         MDLabel:
             id: display_quote_label
             text: "Quote Details"
-            font_size: 30
+            font_size: sp(30)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
                 
-        ScrollView:
-            size_hint_y: .73
-            do_scroll_x:False
-            do_scroll_y:True  
+        ScrollView:  
                             
             GridLayout:
                 id: quote_grid
                 cols:2
                 height:self.minimum_height   
+        
+        MDRoundFlatButton:
+            text: "BUY"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'ownership_details_screen'  
                 
         MDRoundFlatButton:
             text: "BACK"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'quote_screen'  
             
 <ClaimScreen>:
     name: 'claim_screen'
     MDCard:
-        size_hint: None, None
-        size: 300,500
         pos_hint:{"center_x":0.5, "center_y":0.5}
-        elevation: 10
-        padding: 25
-        spacing: 25
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
         orientation: 'vertical'
         
         Image:
@@ -1302,34 +1764,160 @@ ScreenManager:
             
         MDLabel:
             text: "Claim Filed Successfully"
-            font_size: 25
+            font_size: sp(25)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15     
+            padding_y: dp(15)     
             
         MDLabel:
             text: "Our agent will contact you shortly."
-            font_size: 10
+            font_size: sp(10)
             halign: "center"
             size_hint_y: None
             height: self.texture_size[1]
-            padding_y: 15 
+            padding_y: dp(15) 
             
         MDRoundFlatButton:
             text: "MENU"
-            font_size: 15
+            font_size: sp(15)
             pos_hint:{"center_x":0.5, "center_y":0.1}
             on_press: app.root.current = 'menu'  
             
-
+<PurchaseSuccessScreen>:
+    name: 'purchase_success_screen'
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'
+        
+        Image:
+            source: "images/checked.png"
             
+        MDLabel:
+            text: "Policy Purchased Successfully"
+            font_size: sp(25)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)     
             
+        MDLabel:
+            text: "Thankyou for choosing us! Policy details have been emailed to you."
+            font_size: sp(10)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15) 
+            
+        MDRoundFlatButton:
+            text: "MENU"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'menu'  
+            
+<RenewSuccessScreen>:
+    name: 'renew_success_screen'
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'
+        
+        Image:
+            source: "images/checked.png"
+            
+        MDLabel:
+            text: "Policy Renewed Successfully"
+            font_size: sp(25)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)     
+            
+        MDLabel:
+            text: "Thankyou for choosing us! Details of renewed policy have been emailed to you."
+            font_size: sp(10)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15) 
+            
+        MDRoundFlatButton:
+            text: "MENU"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5, "center_y":0.1}
+            on_press: app.root.current = 'menu'  
+                      
+<ChangePasswordScreen>:
+    name: 'change_password_screen'            
+    MDCard:
+        pos_hint:{"center_x":0.5, "center_y":0.5}
+        elevation: dp(10)
+        padding: dp(25)
+        spacing: dp(25)
+        orientation: 'vertical'   
+        
+        MDLabel:
+            id: password_change_label
+            text: "Change your Password"
+            font_size: sp(20)
+            halign: "center"
+            size_hint_y: None
+            height: self.texture_size[1]
+            padding_y: dp(15)
+        
+        ScrollView:
+            
+            GridLayout:
+                width: self.parent.width-dp(10)
+                size_hint_x:1
+                size_hint_y:None
+                cols:1
+                height:self.minimum_height
+                
+                Widget:
+                    size_hint_y: None
+                    height: dp(10)
+    
+                MDTextField:
+                    id: current_password
+                    mode: "rectangle"
+                    hint_text: "Current password"
+                    
+                MDTextField:
+                    id: new_password
+                    mode: "rectangle"
+                    hint_text: "New password"                   
+                    
+                    
+        Widget:
+            size_hint_y: None
+            height: dp(10)
+                    
+        MDRoundFlatButton:
+            text: "CHANGE"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: root.change_password()
+          
+            
+        MDRoundFlatButton:
+            text: "BACK"
+            font_size: sp(15)
+            pos_hint:{"center_x":0.5}
+            on_press: app.root.current = 'profile'
+            
+ 
+           
 """
 
 class LoginScreen(Screen):
     def create_get(self):
-         firebase_url = "https://fypvehicleappusers-default-rtdb.firebaseio.com/.json"
+         firebase_url = "https://fypvehicleappusers-50c95-default-rtdb.firebaseio.com/.json"
          res=requests.get(url = firebase_url)
          user_dict = res.json().get("Users")
          auth_list = []
@@ -1386,7 +1974,7 @@ class LoginScreen(Screen):
 
 
     def update_policies(self):
-        firebase_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
+        firebase_url = "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
         user_dict = res.json().get("Policies")
         for key, value in user_dict.items():
@@ -1408,10 +1996,10 @@ class LoginScreen(Screen):
                     if make == 'sports car':
                         image_name = "images/sport-car.png"
 
-                    new_img = Image(source = image_name, size_hint_x=None, width=40,size_hint_y=None)
-                    new_label = Label(font_size="8sp",text="Type: "+str(typ)+"\nPolicy Number: "+str(pol_num)+"\nExpiration Date: "+str(exp_date)+"\nVIN: "+str(vin), valign="middle",
+                    new_img = Image(source = image_name, size_hint_x=None, width=dp(40),size_hint_y=None)
+                    new_label = Label(font_size="12sp",text="Type: "+str(typ)+"\nPolicy Number: "+str(pol_num)+"\nExpiration Date: "+str(exp_date)+"\nVIN: "+str(vin), valign="middle",
                                       size_hint_y=None)
-                    new_button = Button(font_size="10sp", text="VIEW",size_hint_x=None, size_hint_y=None, width=40)
+                    new_button = Button(font_size="12sp", text="VIEW",size_hint_x=None, size_hint_y=None, width=dp(40))
                     self.ids[str(pol_num)] = new_button
 
 
@@ -1423,7 +2011,7 @@ class LoginScreen(Screen):
 
 
     def update_policy_display(self,instance):
-        firebase_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
+        firebase_url = "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
         policy_dict = res.json().get("Policies")
         app = App.get_running_app()
@@ -1433,14 +2021,18 @@ class LoginScreen(Screen):
             for key1, value1 in value.items():
                 if  key1 == "Policy Number" and value1 == int(policy_num):
                     for key1, value1 in value.items():
-                        field = Label(text=str(key1), valign="middle")
-                        val = Label(text=str(value1), valign="middle")
+                        field = Label(text=str(key1), valign="middle", size_hint_y=None, height=dp(20), font_size='12sp')
+                        val = Label(text=str(value1), valign="middle", size_hint_y=None, height=dp(20), font_size='12sp')
                         app.root.ids.display_policy.ids.policies_grid.add_widget(field)
                         app.root.ids.display_policy.ids.policies_grid.add_widget(val)
         app.root.current = 'display_policy'
 
 class MenuScreen(Screen):
-    pass
+    def logout(self):
+        app = App.get_running_app()
+        app.root.ids.login.ids.user_field.text = ""
+        app.root.ids.login.ids.password_field.text = ""
+        app.root.current = 'login'
 
 class SignUpScreen(Screen):
 
@@ -1497,7 +2089,7 @@ class SignUpScreen(Screen):
         self.qual_menu.dismiss()
 
     def create_post(self):
-        firebase_url = "https://fypvehicleappusers-default-rtdb.firebaseio.com/"
+        firebase_url = "https://fypvehicleappusers-50c95-default-rtdb.firebaseio.com/"
 
         name = self.ids.name.text
         surname = self.ids.surname.text
@@ -1599,11 +2191,12 @@ class QuoteForm(Screen):
         self.ids.fuel_type.text = text_item
         self.type_menu.dismiss()
 
-    def post_quote_request(self, veh_make, veh_mileage, veh_type, model,fuel_type,vin,reg_date,condition):
-        firebase_url = "https://fypvehicleappquoterequests-default-rtdb.firebaseio.com/"
+    def post_quote_request(self, veh_make, veh_mileage, miles_covered, veh_type, model,fuel_type,vin,reg_date,condition):
+        firebase_url = "https://fypvehicleappquotereques-28f43-default-rtdb.firebaseio.com/"
         fb = firebase.FirebaseApplication(firebase_url, None)
         data = {'Vehicle Make': veh_make,
                 'Vehicle Mileage': veh_mileage,
+                'Miles Covered': miles_covered,
                 'Vehicle Type': veh_type,
                 'Model': model,
                 'Fuel Type': fuel_type,
@@ -1637,7 +2230,7 @@ class QuoteForm(Screen):
 
 
     def find_recommendations(self, age, veh_mileage, credit_score, duis, driving_exp, education, gender, income, past_acc, speeding, veh_type):
-        firebase_url = "https://fypvehicleappbasepremiums-default-rtdb.firebaseio.com/.json"
+        firebase_url = "https://fypvehicleappbasepremium-8974d-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
         bases_dict = res.json().get("Bases per Annum")
         mult_dict = res.json().get("Multipliers")
@@ -1714,13 +2307,15 @@ class QuoteForm(Screen):
                     tppd = value["TPPD"]
                     total = value["Total Premium"]
                     vat = value["VAT"]
+                    deductible = value["Deductible"]
                     policy_name = key
                     new_basic = self.apply_multipliers(basic, multipliers)
                     total = int(total-(basic-new_basic))
                     basic = int(new_basic)
-                    recommendations_dict[policy_name] = {'Basic Premium':basic,  'CNG-LPG Cover':cng_lpg_cover,
+                    recommendations_dict[policy_name] = {'Basic Premium':basic, 'Deductible':deductible,  'CNG-LPG Cover':cng_lpg_cover,
                                             'Duration':duration,'Passenger Cover':passenger_cover,'TPPD':tppd,
                                             'VAT':vat,'Total Premium':total}
+
         return recommendations_dict
 
 
@@ -1729,6 +2324,7 @@ class QuoteForm(Screen):
     def add_quote_request(self):
         veh_make = self.ids.veh_make.text
         veh_mileage = self.ids.veh_mileage.text
+        miles_covered = self.ids.miles_covered.text
         veh_type = self.ids.veh_type.text
         model = self.ids.model.text
         fuel_type = self.ids.fuel_type.text
@@ -1744,7 +2340,7 @@ class QuoteForm(Screen):
             condition = 'Used'
 
 
-        self.post_quote_request(veh_make,veh_mileage,veh_type,model,fuel_type,vin,reg_date,condition)
+        self.post_quote_request(veh_make,veh_mileage,miles_covered,veh_type,model,fuel_type,vin,reg_date,condition)
 
         app = App.get_running_app()
         username = app.root.ids.profile.ids.profile_user.text
@@ -1773,12 +2369,11 @@ class QuoteForm(Screen):
                     vat = value["VAT"]
 
 
-            slug = key.replace(" ", "_")
-            new_img = Image(source=image_name, size_hint_x=None, width=40,size_hint_y=None)
-            new_label = Label(font_size="8sp",
+            new_img = Image(source=image_name, size_hint_x=None, width=dp(40),size_hint_y=None)
+            new_label = Label(font_size="12sp",
                           text="Policy Name: " + str(key) + "\nTotal Premium: " + str(total) + "\nBasic Premium: " + str(
                               basic) + "\nVAT: " + str(vat)+ "\nDuration: " + str(duration), valign="middle", size_hint_y=None)
-            new_button = Button(font_size="10sp", text="VIEW", size_hint_x=None, width=40,size_hint_y=None)
+            new_button = Button(font_size="12sp", text="VIEW", size_hint_x=None, width=dp(40),size_hint_y=None)
             self.ids[str(key)] = new_button
             new_button.bind(on_press=self.update_quote_display)
             app.root.ids.quote_screen.ids.quotes_grid.add_widget(new_img)
@@ -1795,18 +2390,23 @@ class QuoteForm(Screen):
         recommendations  = self.recommendations
         policy_name = str(self.get_instance_id(instance))
 
-        firebase_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
+        firebase_url = "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com/.json"
         res = requests.get(url=firebase_url)
         policies_dict = res.json().get("Policies")
         app = App.get_running_app()
         app.root.ids.display_quote.ids.quote_grid.clear_widgets()
 
-        display_recommendation = recommendations[policy_name]
-        for key1, value1 in display_recommendation.items():
+        self.display_recommendation = recommendations[policy_name]
+        for key1, value1 in self.display_recommendation.items():
             field = Label(text=str(key1), valign="middle")
             val = Label(text=str(value1), valign="middle")
             app.root.ids.display_quote.ids.quote_grid.add_widget(field)
             app.root.ids.display_quote.ids.quote_grid.add_widget(val)
+
+        policy_name_field = Label(text='Policy Name', valign="middle")
+        policy_name_val = Label(text=str(policy_name), valign="middle")
+        app.root.ids.display_quote.ids.quote_grid.add_widget(policy_name_field)
+        app.root.ids.display_quote.ids.quote_grid.add_widget(policy_name_val)
 
         app.root.current = 'display_quote'
 
@@ -1814,6 +2414,53 @@ class QuoteScreen(Screen):
     pass
 
 class ClaimForm(Screen):
+
+    def registration_doc_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Document')
+            self.registration_doc_path = path[0]
+            self.ids.reg_doc_upload.text = "Added"
+        except:
+            self.registration_doc_path = None
+            self.ids.reg_doc_upload.text = "No Document uploaded"
+
+
+    def front_pic_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Image')
+            self.front_pic_path = path[0]
+            self.ids.front_pic_upload.text = "Added"
+        except:
+            self.front_pic_path = None
+            self.ids.front_pic_upload.text = "No Photo"
+
+    def back_pic_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Image')
+            self.back_pic_path = path[0]
+            self.ids.back_pic_upload.text = "Added"
+        except:
+            self.back_pic_path = None
+            self.ids.back_pic_upload.text = "No Photo"
+
+    def left_pic_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Image')
+            self.left_pic_path = path[0]
+            self.ids.left_pic_upload.text = "Added"
+        except:
+            self.left_pic_path = None
+            self.ids.left_pic_upload.text = "No Photo"
+
+    def right_pic_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Image')
+            self.right_pic_path = path[0]
+            self.ids.right_pic_upload.text = "Added"
+        except:
+            self.right_pic_path = None
+            self.ids.right_pic_upload.text = "No Photo"
+
 
     def send_email(self, fromaddr, toaddr, subject, message):
 
@@ -1828,6 +2475,47 @@ class ClaimForm(Screen):
         s = smtplib.SMTP('smtp.gmail.com', 587)
 
         s.starttls()
+
+        attachment_list = []
+        self.registration_doc_path = self.registration_doc_path
+        self.front_pic_path = self.front_pic_path
+        self.back_pic_path = self.back_pic_path
+        self.left_pic_path = self.left_pic_path
+        self.right_pic_path = self.right_pic_path
+
+
+        if self.registration_doc_path != None:
+            attachment_list.append(self.registration_doc_path)
+        if self.front_pic_path != None:
+            attachment_list.append(self.front_pic_path)
+        if self.back_pic_path != None:
+            attachment_list.append(self.back_pic_path)
+        if self.left_pic_path != None:
+            attachment_list.append(self.left_pic_path)
+        if self.right_pic_path != None:
+            attachment_list.append(self.right_pic_path)
+
+        print(self.registration_doc_path)
+        print(self.front_pic_path)
+        print(self.back_pic_path )
+        print(self.left_pic_path  )
+        print(self.right_pic_path  )
+
+
+        for filename in attachment_list:
+            with open(filename, "rb") as attachment:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+
+                encoders.encode_base64(part)
+                name = Path(filename).name
+                part.add_header(
+                    "Content-Disposition",
+                    f"attachment; filename= {name}",
+                )
+
+                msg.attach(part)
+
 
         try:
             s.login(fromaddr, "FYPinsuranceapp2022")
@@ -1966,7 +2654,7 @@ class ClaimForm(Screen):
         return age
 
     def get_user_info(self, username, claim=True):
-        users_url = "https://fypvehicleappusers-default-rtdb.firebaseio.com/.json"
+        users_url = "https://fypvehicleappusers-50c95-default-rtdb.firebaseio.com/.json"
         res_users = requests.get(url=users_url)
         users_dict = res_users.json().get("Users")
 
@@ -1990,7 +2678,7 @@ class ClaimForm(Screen):
 
 
     def get_policy_info(self, policy_number):
-        policies_url = "https://fypvehicleapppolicies-default-rtdb.firebaseio.com/.json"
+        policies_url = "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com/.json"
         res_policies = requests.get(url=policies_url)
         policies_dict = res_policies.json().get("Policies")
 
@@ -2000,13 +2688,12 @@ class ClaimForm(Screen):
                     policy_deductible = value["Deductible"]
                     policy_annual_premium = value["Premium per Annum"]
                     auto_year = value["Vehicle Year"]
-
                     return policy_deductible, policy_annual_premium, auto_year
 
     def post_claim(self, policy_number, incident_type, total_claim_amount, collision_type, severity,
                    incident_date, auth_contact, police_report, number_of_vehicles_involved, account_holder_name,
                    bank_account_number, routing_code, bank_name, bank_branch, taxpayer_number, fraud):
-        firebase_url = "https://fypvehicleappclaims-default-rtdb.firebaseio.com/"
+        firebase_url = "https://fypvehicleappclaims-4e44e-default-rtdb.firebaseio.com/"
         fb = firebase.FirebaseApplication(firebase_url, None)
         data = {'Policy Number': policy_number,
                 'Incident Type': incident_type,
@@ -2151,49 +2838,52 @@ class ClaimForm(Screen):
             insured_education_level_Masters = 0
             insured_education_level_PhD = 0
 
-        with open('classifiers/random_forest_classifier_pkl', 'rb') as f:
-            clf = pickle.load(f)
-        prediction = clf.predict([[
-            insured_sex_FEMALE,
-            insured_sex_MALE,
-            incident_type_Multi_Vehicle_Collision,
-            incident_type_Single_Vehicle_Collision,
-            insured_education_level_Associate,
-            insured_education_level_College,
-            insured_education_level_High_School,
-            insured_education_level_JD,
-            insured_education_level_MD,
-            insured_education_level_Masters,
-            insured_education_level_PhD,
-            collision_type_Front_Collision,
-            collision_type_Rear_Collision,
-            collision_type_Side_Collision,
-            incident_severity_Major_Damage,
-            incident_severity_Minor_Damage,
-            incident_severity_Total_Loss,
-            authorities_contacted_Ambulance,
-            authorities_contacted_Fire,
-            authorities_contacted_Other,
-            authorities_contacted_Police,
-            police_report_available_NO,
-            police_report_available_YES,
-            age,
-            policy_deductible,
-            policy_annual_premium,
-            number_of_vehicles_involved,
-            total_claim_amount,
-            auto_year
-        ]])
+        try:
+            with open("classifiers/random_forest_classifier_pkl", 'rb') as f:
+                clf = pickle.load(f)
+            prediction = clf.predict([[
+                insured_sex_FEMALE,
+                insured_sex_MALE,
+                incident_type_Multi_Vehicle_Collision,
+                incident_type_Single_Vehicle_Collision,
+                insured_education_level_Associate,
+                insured_education_level_College,
+                insured_education_level_High_School,
+                insured_education_level_JD,
+                insured_education_level_MD,
+                insured_education_level_Masters,
+                insured_education_level_PhD,
+                collision_type_Front_Collision,
+                collision_type_Rear_Collision,
+                collision_type_Side_Collision,
+                incident_severity_Major_Damage,
+                incident_severity_Minor_Damage,
+                incident_severity_Total_Loss,
+                authorities_contacted_Ambulance,
+                authorities_contacted_Fire,
+                authorities_contacted_Other,
+                authorities_contacted_Police,
+                police_report_available_NO,
+                police_report_available_YES,
+                age,
+                policy_deductible,
+                policy_annual_premium,
+                number_of_vehicles_involved,
+                total_claim_amount,
+                auto_year
+            ]])
+            print("prediction = "+str(prediction))
 
-        print("prediction = "+str(prediction))
 
-
-        prediction = re.sub('\D', '', str(prediction))
-        fraud = ""
-        if prediction == "1":
-            fraud = "True"
-        else:
+            prediction = re.sub('\D', '', str(prediction))
+            fraud = ""
+            if prediction == "1":
+                fraud = "True"
+            else:
+                fraud = "False"
+        except:
             fraud = "False"
+
 
 
 
@@ -2224,13 +2914,335 @@ class DisplayPolicy(Screen):
     pass
 
 class ProfileScreen(Screen):
-    pass
+    def change_profile_pic(self):
+        profile_img_path = ""
+        try:
+            path = filechooser.open_file(title='Select Image')
+            profile_img_path = path[0]
+            self.ids.profile_img.source = profile_img_path
+        except:
+            pass
+
+
+class CardPaymentScreen(Screen):
+    def save_policy(self):
+        app = App.get_running_app()
+
+        veh_make = app.root.ids.quote_form.ids.veh_make.text
+        veh_mileage = app.root.ids.quote_form.ids.veh_mileage.text
+        miles_covered = app.root.ids.quote_form.ids.miles_covered.text
+        veh_type = app.root.ids.quote_form.ids.veh_type.text
+        model = app.root.ids.quote_form.ids.model.text
+        fuel_type = app.root.ids.quote_form.ids.fuel_type.text
+        vin = app.root.ids.quote_form.ids.vin.text
+        reg_date = app.root.ids.quote_form.ids.reg_date.text
+        chk_used = app.root.ids.quote_form.ids.chk_used.active
+        chk_new = app.root.ids.quote_form.ids.chk_new.active
+        condition = ''
+
+        if chk_used == False:
+            condition = 'New'
+        else:
+            condition = 'Used'
+
+        recommendation = [widget.text for widget in app.root.ids.display_quote.ids.quote_grid.children]
+        policy_name = recommendation[0]
+        total_premium = recommendation[2]
+        vat = recommendation[4]
+        tppd = recommendation[6]
+        passenger_cover = recommendation[8]
+        duration = recommendation[10]
+        cng_lpg = recommendation[12]
+        deductible = recommendation[14]
+        basic_premium = recommendation[16]
+
+        ownership = app.root.ids.ownership_details_screen.ids.ownership.text
+        licence_plate = app.root.ids.ownership_details_screen.ids.licence_plate.text
+
+        name = app.root.ids.profile.ids.profile_name.text
+        first_name, last_name = name.split(' ')
+        username = app.root.ids.profile.ids.profile_user.text
+
+        duration_year = duration.split(' ')[0]
+
+        start = date.today()
+        effective_date = start.strftime("%Y-%m-%d")
+
+        end = start + relativedelta(years=int(duration_year))
+        expiry_date = end.strftime("%Y-%m-%d")
+
+        payment = start + relativedelta(months=6)
+        due_date = payment.strftime("%Y-%m-%d")
+
+        typ = 'Auto'
+        policy_number = randint(10000,100000000)
+
+        firebase_url = "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com/"
+        fb = firebase.FirebaseApplication(firebase_url, None)
+        data = {'Name': first_name,
+                'Surname': last_name,
+                'Condition': condition,
+                'Deductible': deductible,
+                'Due Date': due_date,
+                'Effective Date': effective_date,
+                'Expiration Date': expiry_date,
+                'Duration': duration,
+                'Fuel Type': fuel_type,
+                'Licence Plate': licence_plate,
+                'Make': veh_type,
+                'Miles Covered': miles_covered,
+                'Model': model,
+                'Ownership': ownership,
+                'Policy Name': policy_name,
+                'Premium per Annum': total_premium,
+                'Type': typ,
+                'Username': username,
+                'VIN': vin,
+                'Vehicle Registration Date': reg_date,
+                'Vehicle Year': veh_make,
+                'Vehicle Mileage': veh_mileage,
+                'VAT': vat,
+                'TPPD': tppd,
+                'Passenger Cover': passenger_cover,
+                'CNG-LPG Cover': cng_lpg,
+                'Basic Premium': basic_premium,
+                'Policy Number': policy_number
+                }
+        result = fb.post('/Policies/', data)
+
+
+    def process_payment(self):
+        app = App.get_running_app()
+        email = app.root.ids.profile.ids.profile_email.text
+        fromaddr = 'fypcarinsuranceapp@gmail.com'
+        toaddr = email
+        subject = 'Policy Details'
+        message = 'See below details of policy'
+
+        self.save_policy()
+
+        OwnershipDetailsScreen.send_email(self,fromaddr, toaddr, subject, message)
+        app.root.current = 'purchase_success_screen'
 
 class OwnershipDetailsScreen(Screen):
-    pass
+
+    def ownership_reg_doc_chooser(self):
+        try:
+            path = filechooser.open_file(title='Select Document')
+            self.ownership_reg_doc_path = path[0]
+            self.ids.ownership_reg_doc_upload.text = "Added"
+        except:
+            self.ownership_reg_doc_path = None
+            self.ids.ownership_reg_doc_upload.text = "No Document uploaded"
+
+    def ownership_picker(self):
+        ownership_status = ['Titleholder', 'Rented']
+        ownership_status_items = [
+            {
+                "viewclass": "OneLineListItem",
+                "text": i,
+                "height": dp(40),
+                "on_release": lambda x=i: self.set_ownership_type(x),
+            } for i in ownership_status
+        ]
+        self.ownership_types_menu = MDDropdownMenu(
+            caller=self.ids.ownership,
+            items=ownership_status_items,
+            position="center",
+            width_mult=2,
+        )
+        self.ownership_types_menu.open()
+
+    def set_ownership_type(self, text_item):
+        self.ids.ownership.text = text_item
+        self.ownership_types_menu.dismiss()
+
+    def proceed_to_payment(self):
+        app = App.get_running_app()
+
+        payment_type = app.root.ids.ownership_details_screen.ids.payment_method.text
+        if payment_type == 'Card':
+            app.root.current = 'card_payment_screen'
+        if payment_type == 'Internet Banking':
+            app.root.current = 'bank_transfer_screen'
+
+    def get_ownership_reg_doc_path(self):
+        ownership_reg_doc_path = self.ownership_reg_doc_path
+        return ownership_reg_doc_path
+
+    def send_email(self, fromaddr, toaddr, subject, message):
+
+        msg = MIMEMultipart()
+        msg['From'] = fromaddr
+        msg['To'] = toaddr
+        msg['Subject'] = subject
+        body = message
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        s = smtplib.SMTP('smtp.gmail.com', 587)
+
+        s.starttls()
+
+        try:
+            s.login(fromaddr, "FYPinsuranceapp2022")
+
+            text = msg.as_string()
+
+            s.sendmail(fromaddr, toaddr, text)
+        except:
+            print("An Error occured while sending email.")
+        finally:
+            s.quit()
+
+        return []
+
 
 class SettingScreen(Screen):
     pass
+
+class BankTransferScreen(Screen):
+    def process_bank_transfer(self):
+        app = App.get_running_app()
+        email = app.root.ids.profile.ids.profile_email.text
+        fromaddr = 'fypcarinsuranceapp@gmail.com'
+        toaddr = email
+        subject = 'Policy Details'
+        message = 'See below details of policy'
+
+        CardPaymentScreen.save_policy(self)
+
+        OwnershipDetailsScreen.send_email(self,fromaddr, toaddr, subject, message)
+        app.root.current = 'purchase_success_screen'
+
+class PurchaseSuccessScreen(Screen):
+    pass
+
+class RenewSuccessScreen(Screen):
+    pass
+
+
+class PaymentSelectScreen(Screen):
+    def proceed_to_payement_renew(self):
+        app = App.get_running_app()
+
+        payment_type = app.root.ids.payment_select_screen.ids.payment_method.text
+        if payment_type == 'Card':
+            app.root.current = 'card_payment_screen_renew'
+        if payment_type == 'Internet Banking':
+            app.root.current = 'bank_transfer_screen_renew'
+
+
+
+class CardPaymentScreenRenew(Screen):
+
+    def add_years(self, expiration_date, years):
+        new_expiration_date = expiration_date.replace(expiration_date.year + int(years))
+        return new_expiration_date
+
+    def renew(self):
+        app = App.get_running_app()
+        policy_details = [widget.text for widget in app.root.ids.display_policy.ids.policies_grid.children]
+        policy_number = policy_details[14]
+        expiration_date =  policy_details[32]
+        duration = policy_details[36]
+
+        duration = ''.join(filter(str.isdigit, duration))
+        expiration_date = expiration_date.split("-")
+        new_expiration_date = self.add_years(date(int(expiration_date[0]), int(expiration_date[1]), int(expiration_date[2])), duration)
+
+        firebaseConfig = {
+            "apiKey": "AIzaSyCfVIr028sZTAsW6eSq_B2WV49mdaAyEyg",
+            "authDomain": "fypvehicleapppolicies-fd46e.firebaseapp.com",
+            "databaseURL": "https://fypvehicleapppolicies-fd46e-default-rtdb.firebaseio.com",
+            "projectId": "fypvehicleapppolicies-fd46e",
+            "storageBucket": "fypvehicleapppolicies-fd46e.appspot.com",
+            "messagingSenderId": "295084998024",
+            "appId": "1:295084998024:web:a025d582a1476521f00e3d"
+        }
+
+        firebase = pyrebase.initialize_app(firebaseConfig)
+        db = firebase.database()
+
+        policies_dict = db.child("Policies").get()
+        for policy in policies_dict.each():
+            if (policy.val()['Policy Number'] == int(policy_number)):
+                key = policy.key()
+        db.child("Policies").child(key).update({"Expiration Date": str(new_expiration_date)})
+
+
+    def process_payment_renew(self):
+        app = App.get_running_app()
+        email = app.root.ids.profile.ids.profile_email.text
+        fromaddr = 'fypcarinsuranceapp@gmail.com'
+        toaddr = email
+        subject = 'Policy Renewed'
+        message = 'See below details of renewed policy'
+
+        self.renew()
+
+        OwnershipDetailsScreen.send_email(self,fromaddr, toaddr, subject, message)
+        app.root.current = 'renew_success_screen'
+
+
+class BankTransferScreenRenew(Screen):
+    def process_bank_transfer_renew(self):
+        app = App.get_running_app()
+        email = app.root.ids.profile.ids.profile_email.text
+        fromaddr = 'fypcarinsuranceapp@gmail.com'
+        toaddr = email
+        subject = 'Policy Renewed'
+        message = 'See below details of renewed policy'
+
+        CardPaymentScreenRenew.renew(self)
+
+        OwnershipDetailsScreen.send_email(self,fromaddr, toaddr, subject, message)
+        app.root.current = 'renew_success_screen'
+
+class ChangePasswordScreen(Screen):
+    def change_password(self):
+        users_url = "https://fypvehicleappusers-50c95-default-rtdb.firebaseio.com/.json"
+        res_users = requests.get(url=users_url)
+        users_dict = res_users.json().get("Users")
+
+        current_password = self.ids.current_password.text
+        new_password = self.ids.new_password.text
+
+        app = App.get_running_app()
+        username = app.root.ids.profile.ids.profile_user.text
+        for key, value in users_dict.items():
+            for key1 in value:
+                if key1 == "Username" and value[key1] == username:
+                    current = value["Password"]
+
+        if current !=current_password:
+            return
+        elif new_password.isspace() or new_password=="":
+            return
+        else:
+            firebaseConfig = {
+                  "apiKey": "AIzaSyB5uuOHhrpyQN_6-hNIvYNdUdMu9eOD26Q",
+                  "authDomain": "fypvehicleappusers-50c95.firebaseapp.com",
+                  "databaseURL": "https://fypvehicleappusers-50c95-default-rtdb.firebaseio.com",
+                  "projectId": "fypvehicleappusers-50c95",
+                  "storageBucket": "fypvehicleappusers-50c95.appspot.com",
+                  "messagingSenderId": "177789826202",
+                  "appId": "1:177789826202:web:342401f7e6c06223bb1b23"
+            }
+
+            firebase = pyrebase.initialize_app(firebaseConfig)
+            db = firebase.database()
+
+            users = db.child("Users").get()
+            for user in users.each():
+                if (user.val()['Username'] == username):
+                    key = user.key()
+            db.child("Users").child(key).update({"Password": str(new_password)})
+            app.root.current = 'profile'
+
+
+
+
 
 
 # Create the screen manager
@@ -2248,6 +3260,16 @@ sm.add_widget(MenuScreen(name='settings'))
 sm.add_widget(MenuScreen(name='display_policy'))
 sm.add_widget(MenuScreen(name='display_quote'))
 sm.add_widget(MenuScreen(name='ownership_details_screen'))
+sm.add_widget(MenuScreen(name='card_payment_screen'))
+sm.add_widget(MenuScreen(name='bank_transfer_screen'))
+sm.add_widget(MenuScreen(name='card_payment_screen_renew'))
+sm.add_widget(MenuScreen(name='bank_transfer_screen_renew'))
+sm.add_widget(MenuScreen(name='purchase_success_screen'))
+sm.add_widget(MenuScreen(name='payment_select_screen'))
+sm.add_widget(MenuScreen(name='renew_success_screen'))
+sm.add_widget(MenuScreen(name='renew_success_screen'))
+sm.add_widget(MenuScreen(name='change_password_screen'))
+
 
 class MainApp(MDApp):
     def build(self):
@@ -2256,6 +3278,8 @@ class MainApp(MDApp):
         screen = Builder.load_string(screen_helper)
         self.title = "Vehicle Insurance Application"
         return screen
+
+
 
 
 if __name__ == '__main__':
